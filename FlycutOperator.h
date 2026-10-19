@@ -58,6 +58,7 @@
 -(FlycutClipping*)getClippingFromStackPosition;
 -(FlycutClipping*)getClippingFromIndex:(int) position;
 -(FlycutClipping*)clippingAtIndex:(int) index;
+-(BOOL)shouldSkip:(NSString *)contents ofType:(NSString *)type fromAvailableTypes:(NSArray<NSString *> *)availableTypes;
 -(bool) saveFromStack;
 -(bool)clearItemAtStackPosition;
 -(void)clearList;
