@@ -11,6 +11,13 @@
 
 #import <Foundation/Foundation.h>
 
+// Image clippings store only a reference to a PNG file on disk (never the image
+// bytes) in their contents.  The contents are the file name, formatted as
+// "<UUID>_<width>x<height>.png", inside +imageDirectoryPath.
+extern NSString * const FlycutImageClippingType;
+// Largest PNG that will be kept as an image clipping.
+extern const NSUInteger FlycutMaxImageClippingBytes;
+
 @interface FlycutClipping : NSObject {
 // What must a clipping hold?
 // The text
@@ -56,5 +63,20 @@
 
 // Additional functions
 -(void) resetDisplayString;
+
+// Image clipping support
+-(BOOL) isImage;
+-(NSString *) imagePath; // nil unless this is an image clipping
++(BOOL) isImageType:(NSString *)type;
++(NSString *) imageDirectoryPath;
++(NSString *) imagePathForContents:(NSString *)contents;
++(BOOL) imageContentsAreValid:(NSString *)contents; // well-formed name whose file exists
+// Converts PNG/TIFF data to PNG, writes it to the image directory and returns
+// the contents string for a new image clipping, or nil on failure / too large.
++(NSString *) storeImageData:(NSData *)data;
+// Deletes files in the image directory that are not in referencedContents.
+// Files younger than a short grace period are kept, since they may belong to
+// a clipping that is about to be added.
++(void) removeImageFilesNotIn:(NSSet *)referencedContents;
 
 @end

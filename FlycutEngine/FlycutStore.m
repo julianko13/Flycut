@@ -161,7 +161,12 @@
 }
 
 -(void) mergeList {
-    NSString *merge = [[[[jcList reverseObjectEnumerator] allObjects] valueForKey:@"clipContents"] componentsJoinedByString:@"\n"];
+    NSMutableArray *textContents = [NSMutableArray array];
+    for (FlycutClipping *aClipping in [jcList reverseObjectEnumerator]) {
+        if (![aClipping isImage] && nil != [aClipping contents])
+            [textContents addObject:[aClipping contents]];
+    }
+    NSString *merge = [textContents componentsJoinedByString:@"\n"];
     [self addClipping:merge ofType:NSStringFromClass([merge class]) fromAppLocalizedName:@"Merge" fromAppBundleURL:nil atTimestamp:0];
 }
 
@@ -345,6 +350,13 @@
     return returnArray;
 }
 
+// Image clippings hold a file name as their contents, so search their label instead.
+-(NSString *) searchableTextForClipping:(FlycutClipping *)aClipping
+{
+    NSString *text = [aClipping isImage] ? [aClipping displayString] : [aClipping contents];
+    return nil == text ? @"" : text;
+}
+
 -(NSArray *) previousDisplayStrings:(int)howMany
 {
     return [self previousDisplayStrings:howMany containing:nil];
@@ -364,7 +376,7 @@
         enumerator = [subArray objectEnumerator];
         int index = 0;
         while ( aClipping = [enumerator nextObject] ) { // Forward enumerator so we find the most recent N matches
-            if ([[self clippingContentsAtPosition:index] rangeOfString:search options:NSCaseInsensitiveSearch].location != NSNotFound) {
+            if ([[self searchableTextForClipping:aClipping] rangeOfString:search options:NSCaseInsensitiveSearch].location != NSNotFound) {
                 [returnArray insertObject:[aClipping displayString] atIndex:0];
                 howMany--;
                 if (0 == howMany)
@@ -402,7 +414,7 @@
         enumerator = [subArray objectEnumerator];
         int index = 0;
         while ( aClipping = [enumerator nextObject] ) { // Forward enumerator so we find the most recent N matches
-            if ([[self clippingContentsAtPosition:index] rangeOfString:search options:NSCaseInsensitiveSearch].location != NSNotFound) {
+            if ([[self searchableTextForClipping:aClipping] rangeOfString:search options:NSCaseInsensitiveSearch].location != NSNotFound) {
                 [returnArray addObject:[NSNumber numberWithInt:index]];
                 howMany--;
                 if (0 == howMany)

@@ -83,6 +83,7 @@
 // Basic functionality
 -(void) pollPB:(NSTimer *)timer;
 -(void) addClipToPasteboard:(NSString*)pbFullText;
+-(BOOL) addClippingToPasteboard:(FlycutClipping*)clipping;
 -(void) setPBBlockCount:(NSNumber *)newPBBlockCount;
 -(void) hideApp;
 -(void) fakeCommandV;

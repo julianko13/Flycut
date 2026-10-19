@@ -53,6 +53,11 @@
 -(int)stackPosition;
 -(NSString*)getPasteFromStackPosition;
 -(NSString*)getPasteFromIndex:(int) position;
+// Like getPasteFromStackPosition / getPasteFromIndex:, but return the clipping so
+// callers can tell image clippings from text.
+-(FlycutClipping*)getClippingFromStackPosition;
+-(FlycutClipping*)getClippingFromIndex:(int) position;
+-(FlycutClipping*)clippingAtIndex:(int) index;
 -(bool) saveFromStack;
 -(bool)clearItemAtStackPosition;
 -(void)clearList;
