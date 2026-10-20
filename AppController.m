@@ -1460,9 +1460,18 @@ didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
     if ( nil == thumbnail )
         return;
     [item setImage:thumbnail];
-    // macOS 26+ decides on its own whether menu item images are shown; ask for it explicitly.
-    if (@available(macOS 26.0, *)) {
-        [item setPreferredImageVisibility:NSMenuItemImageVisibilityVisible];
+    // macOS 27 added -[NSMenuItem preferredImageVisibility]; with the default
+    // (Automatic) AppKit may hide menu item images.  Ask for Visible explicitly.
+    // Called at runtime because the build SDK may predate macOS 27.
+    // NSMenuItemImageVisibilityVisible == 1 (see e.g. Chromium's macos27_sdk.h).
+    SEL setVisibility = NSSelectorFromString(@"setPreferredImageVisibility:");
+    if ( [item respondsToSelector:setVisibility] ) {
+        NSInteger visible = 1;
+        NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:[item methodSignatureForSelector:setVisibility]];
+        [invocation setSelector:setVisibility];
+        [invocation setTarget:item];
+        [invocation setArgument:&visible atIndex:2];
+        [invocation invoke];
     }
 }
 
