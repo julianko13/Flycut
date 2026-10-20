@@ -1378,7 +1378,7 @@ didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
             if ( returnedPosition < [returnedIndexes count] ) {
                 FlycutClipping *clipping = [flycutOperator clippingAtIndex:[[returnedIndexes objectAtIndex:returnedPosition] intValue]];
                 if ( [clipping isImage] )
-                    [item setImage:[self menuThumbnailForClipping:clipping]];
+                    [self setThumbnail:[self menuThumbnailForClipping:clipping] forMenuItem:item];
             }
             [jcMenu insertItem:item atIndex:0];
             // Way back in 0.2, failure to release the new item here was causing a quite atrocious memory leak.
@@ -1388,6 +1388,8 @@ didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
 }
 
 // Small, cached thumbnail for an image clipping's menu item.
+// Rendered into an explicit bitmap (no -lockFocus, which is deprecated and can
+// produce an empty image), never a template image, and sized to fit a menu row.
 -(NSImage *)menuThumbnailForClipping:(FlycutClipping *)clipping
 {
     static NSCache *thumbnailCache = nil;
@@ -1403,30 +1405,65 @@ didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
     if ( nil != thumbnail )
         return thumbnail;
 
-    NSImage *source = [[NSImage alloc] initWithContentsOfFile:path];
-    if ( nil == source )
-        return nil;
-    NSSize sourceSize = [source size];
-    if ( sourceSize.width <= 0 || sourceSize.height <= 0 ) {
-        [source release];
+    NSBitmapImageRep *source = [NSBitmapImageRep imageRepWithContentsOfFile:path];
+    if ( nil == source || [source pixelsWide] <= 0 || [source pixelsHigh] <= 0 ) {
+        NSLog(@"Flycut: could not load image clipping thumbnail from %@", path);
         return nil;
     }
-    const CGFloat maxWidth = 32.0, maxHeight = 20.0;
-    CGFloat scale = MIN(maxWidth / sourceSize.width, maxHeight / sourceSize.height);
-    if ( scale > 1.0 )
-        scale = 1.0;
-    NSSize size = NSMakeSize(MAX(1.0, round(sourceSize.width * scale)), MAX(1.0, round(sourceSize.height * scale)));
-    thumbnail = [[[NSImage alloc] initWithSize:size] autorelease];
-    [thumbnail lockFocus];
-    [[NSGraphicsContext currentContext] setImageInterpolation:NSImageInterpolationHigh];
-    [source drawInRect:NSMakeRect(0, 0, size.width, size.height)
+    const CGFloat maxWidth = 32.0, maxHeight = 18.0; // points; fits a standard menu row
+    CGFloat sourceWidth = [source pixelsWide], sourceHeight = [source pixelsHigh];
+    CGFloat scale = MIN(1.0, MIN(maxWidth / sourceWidth, maxHeight / sourceHeight));
+    NSSize size = NSMakeSize(MAX(1.0, round(sourceWidth * scale)), MAX(1.0, round(sourceHeight * scale)));
+
+    // Render at 2x so it stays sharp on Retina displays.
+    NSInteger pixelsWide = (NSInteger)size.width * 2, pixelsHigh = (NSInteger)size.height * 2;
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
+                                                                     pixelsWide:pixelsWide
+                                                                     pixelsHigh:pixelsHigh
+                                                                  bitsPerSample:8
+                                                                samplesPerPixel:4
+                                                                       hasAlpha:YES
+                                                                       isPlanar:NO
+                                                                 colorSpaceName:NSDeviceRGBColorSpace
+                                                                    bytesPerRow:0
+                                                                   bitsPerPixel:0];
+    if ( nil == rep )
+        return nil;
+    NSGraphicsContext *context = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
+    if ( nil == context ) {
+        [rep release];
+        return nil;
+    }
+    [NSGraphicsContext saveGraphicsState];
+    [NSGraphicsContext setCurrentContext:context];
+    [context setImageInterpolation:NSImageInterpolationHigh];
+    [source drawInRect:NSMakeRect(0, 0, pixelsWide, pixelsHigh)
               fromRect:NSZeroRect
              operation:NSCompositingOperationCopy
-              fraction:1.0];
-    [thumbnail unlockFocus];
-    [source release];
+              fraction:1.0
+        respectFlipped:NO
+                 hints:nil];
+    [context flushGraphics];
+    [NSGraphicsContext restoreGraphicsState];
+    [rep setSize:size];
+
+    thumbnail = [[[NSImage alloc] initWithSize:size] autorelease];
+    [thumbnail addRepresentation:rep];
+    [rep release];
+    [thumbnail setTemplate:NO];
     [thumbnailCache setObject:thumbnail forKey:key];
     return thumbnail;
+}
+
+-(void)setThumbnail:(NSImage *)thumbnail forMenuItem:(NSMenuItem *)item
+{
+    if ( nil == thumbnail )
+        return;
+    [item setImage:thumbnail];
+    // macOS 26+ decides on its own whether menu item images are shown; ask for it explicitly.
+    if (@available(macOS 26.0, *)) {
+        [item setPreferredImageVisibility:NSMenuItemImageVisibilityVisible];
+    }
 }
 
 -(IBAction)processMenuClippingSelection:(id)sender
