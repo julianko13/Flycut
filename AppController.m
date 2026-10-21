@@ -819,7 +819,19 @@
 }
 
 /*" +fakeCommandV synthesizes keyboard events for Cmd-v Paste shortcut. "*/
--(void)fakeCommandV { [self fakeKey:@(kVK_ANSI_V) withCommandFlag:TRUE]; }
+-(void)fakeCommandV
+{
+    // Synthesized key events are silently dropped without Accessibility permission.  An ad-hoc
+    // signed build gets a new signature each time, so an old permission entry no longer applies.
+    static BOOL warnedAboutAccessibility = NO;
+    if ( !AXIsProcessTrusted() && !warnedAboutAccessibility ) {
+        warnedAboutAccessibility = YES;
+        NSLog(@"Flycut: not trusted for Accessibility; synthesized Cmd-V will be ignored. Remove and re-add Flycut in System Settings > Privacy & Security > Accessibility.");
+        NSDictionary *options = @{(id)kAXTrustedCheckOptionPrompt: @YES};
+        AXIsProcessTrustedWithOptions((CFDictionaryRef)options);
+    }
+    [self fakeKey:@(kVK_ANSI_V) withCommandFlag:TRUE];
+}
 
 /*" +fakeDownArrow synthesizes keyboard events for the down-arrow key. "*/
 -(void)fakeDownArrow { [self fakeKey:@125 withCommandFlag:FALSE]; }
@@ -1482,8 +1494,19 @@ didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
 
 	if ( [[NSUserDefaults standardUserDefaults] boolForKey:@"menuSelectionPastes"] ) {
 		[self performSelector:@selector(hideApp) withObject:nil];
-		[self performSelector:@selector(fakeCommandV) withObject:nil afterDelay:0.2];
+		// Opening the menu activates Flycut (for the search box).  Wait until the previous app is
+		// frontmost again before synthesizing Cmd-V, or the keystroke lands in Flycut itself.
+		[self performSelector:@selector(menuPasteAttempt:) withObject:@0 afterDelay:0.2 inModes:[NSArray arrayWithObject:NSRunLoopCommonModes]];
 	}
+}
+
+-(void)menuPasteAttempt:(NSNumber *)attempt
+{
+	if ( [NSApp isActive] && [attempt intValue] < 20 ) {
+		[self performSelector:@selector(menuPasteAttempt:) withObject:[NSNumber numberWithInt:[attempt intValue] + 1] afterDelay:0.05 inModes:[NSArray arrayWithObject:NSRunLoopCommonModes]];
+		return;
+	}
+	[self fakeCommandV];
 }
 
 -(void) setPBBlockCount:(NSNumber *)newPBBlockCount
